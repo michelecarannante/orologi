@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Canvas</title>
+  <style>
+    body, html {
+      margin: 0; 
+      padding: 0;
+      background: black;
+      overflow: hidden;
+      background: rgba(132, 217, 176, 1);
+    }
+    .info {
+      position: absolute;
+      left: 0; 
+      bottom: 0;
+      z-index: 99;
+      color: white;
+      padding: 20px;
+      font-size: 0.8em;
+      font-family: "Helvetica Neue", sans-serif;
+      background: transparent;
+    }
+    .footer-text {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: black;
+      text-align: center;
+      font-size: 2em;
+      font-family: "Helvetica Neue", sans-serif;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="info">move mouse (mobile version coming soon)</div>
+  <canvas id="canvas"></canvas>
+  <div class="footer-text">
+    <p>non vediamo l'ora di ospitarti</p>
+    <p>Scilla Cariddi Rental Boat</p>
+  </div>
+  <script>
+    let canvas = document.getElementById('canvas'),
+        c = canvas.getContext('2d'),
+        NUM = 25,
+        clocks = [],
+        handColor = 'rgba(255, 255, 255, 0.9)',
+        bgColor = 'rgba(132, 217, 176, 0.5)',
+        fillColor = 'rgba(255, 199, 115, 0.7)',
+        shadeColor = 'rgba(21, 15, 156, 0.05)',
+        strokeColor = 'rgba(255, 255, 255, 0.2)',
+        mouseX = 0, mouseY = 0,
+        k = (4 / 3) * (Math.sqrt(2) - 1),
+        rotX = 0, rotY = 0,
+        perspective = 500, 
+        depth, currX, currY;
+
+    document.body.appendChild(canvas);
+      
+    let nonsenseClocks = {
+      circlePoints(x, y, r) {
+        let addXy = (v, i) => i % 2 ? v + y : v + x;
+        return [
+          [0, -r, k * r, -r , r, -k * r, r, 0],
+          [r, 0,  r, k * r, k * r ,r , 0, r],
+          [0, r, -k * r ,r , -r , k * r , -r ,0],
+          [-r, 0, -r, -k * r, -k * r , -r, 0, -r]
+        ].map((seg) => {
+          return seg.map(addXy);
+        });
+      },
+      
+      point3d(x, y, z) {
+        let cosX = Math.cos(rotX),
+            cosY = Math.cos(rotY),
+            sinX = Math.sin(rotX),
+            sinY = Math.sin(rotY),
+            posX, posY, posZ;
+       
+        posZ = z * cosX - x * sinX,
+        posX = z * sinX + x * cosX,
+        posY = y * cosY - posZ * sinY,
+        posZ = y * sinY + posZ * cosY;
+        
+        depth = 1 / (posZ / perspective + 1);
+        currX = posX * depth;
+        currY = posY * depth;
+        
+        return [currX, currY, depth];
+      },
+      
+      drawCircle2d(points) {
+        c.strokeStyle = strokeColor;
+        c.lineWidth = 4;
+        c.shadowColor = shadeColor;
+        c.shadowBlur = 5;
+        c.shadowOffsetX = 10;
+        c.shadowOffsetY = 0;
+        c.beginPath();
+        points.forEach(function(seg, i) {
+          if (i === 0) {
+            c.moveTo(seg[0], seg[1]);
+          }
+          c.bezierCurveTo(seg[2], seg[3], seg[4], seg[5], seg[6], seg[7]);
+        });
+        c.closePath();
+        c.stroke();
+        c.fill();
+      },
+      
+      drawCircle3d(x, y, z, r) {    
+        let points = this.circlePoints(x, y, r),
+            points3d = [];
+        
+        for (let i = 0; i < points.length; i++) {
+          let segs = points[i],
+              segs3d = [];
+          for (let j = 0; j < segs.length - 1; j += 2) {
+            let x = segs[j],
+                y = segs[j + 1],
+                ptn = this.point3d(x, y, z);
+             
+            segs3d.push(ptn[0], ptn[1]);
+          }
+          points3d.push(segs3d);
+        }
+        
+        this.drawCircle2d(points3d);
+      },
+      
+      create(x, y, time) {
+        let z = Math.random() * 200 - 100,
+            r = 5 + Math.random() * 20,
+            smallRad = r - r * 0.3,
+            smallerRad = r - r * 0.5,
+            theta = Math.random() * 2 * Math.PI,
+            slowTheta = Math.random() * 2 * Math.PI,
+            l = Math.floor(Math.random() * 70),
+            rc = 255,
+            gc = 199 + l,
+            bc = 115 + l;
+           
+        const clock = () => {
+          let xp = x + smallRad * Math.cos(theta),
+              yp = y + smallRad * Math.sin(theta),
+              zero = nonsenseClocks.point3d(x, y, z),
+              pnt = nonsenseClocks.point3d(xp, yp, z);
+          
+          clock.depth = zero[2];
+          theta += 0.1;
+          
+          c.fillStyle = `rgba(${rc}, ${gc}, ${bc}, 0.7)`;
+          this.drawCircle3d(x, y, z, r);
+          
+          c.strokeStyle = handColor;
+          c.lineWidth = 1;
+          c.lineJoin = 'round';
+          c.beginPath();
+          c.moveTo(pnt[0], pnt[1]);
+          c.lineTo(zero[0], zero[1]);
+          
+          xp = x + smallerRad * Math.cos(slowTheta);
+          yp = y + smallerRad * Math.sin(slowTheta);
+          pnt = this.point3d(xp, yp, z);
+          
+          c.lineTo(pnt[0], pnt[1]);
+          c.stroke();
+          
+          slowTheta += 0.05;
+        };
+       
+        return clock;
+      },
+      
+      draw() {
+        c.save();
+        c.fillStyle = bgColor;
+        c.fillRect(0, 0, canvas.width, canvas.height);
+        c.translate(canvas.width / 2, canvas.height / 2);
+        let s = (window.innerWidth + window.innerHeight) / 800;
+        c.scale(s, s);
+        clocks.sort((a, b) => a.depth - b.depth);
+        clocks.forEach((clock) => clock());
+        c.restore();
+      },
+      
+      resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        this.draw();
+        return this;
+      },
+      
+      loop() {
+        rotX += ((mouseX * Math.PI / 180) - rotX) / 8;
+        rotY += ((mouseY * Math.PI / 180) - rotY) / 8;
+        nonsenseClocks.draw();
+        requestAnimationFrame(nonsenseClocks.loop);
+        return this;
+      }
+    };
+
+    Array(NUM).fill(0).forEach(() => {
+      let theta = Math.random() * Math.PI * 2,
+          radius = Math.random() * 200,
+          x = radius * Math.cos(theta),
+          y = radius * Math.sin(theta);
+       clocks.push(nonsenseClocks.create(x, y, theta));
+    });
+
+    window.addEventListener('resize', () => nonsenseClocks.resize());
+    nonsenseClocks.resize().loop();
+
+    document.addEventListener('mousemove', (e) => {
+      mouseX = e.pageX;
+      mouseY = e.pageY;
+    });
+  </script>
+</body>
+</html>
